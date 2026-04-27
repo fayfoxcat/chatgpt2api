@@ -99,6 +99,10 @@ def assistant_history_text(messages: list[dict[str, Any]]) -> str:
     return "".join(str(item.get("content") or "") for item in messages if item.get("role") == "assistant")
 
 
+def assistant_history_messages(messages: list[dict[str, Any]]) -> list[str]:
+    return [str(item.get("content") or "") for item in messages if item.get("role") == "assistant" and item.get("content")]
+
+
 def build_image_prompt(prompt: str, size: str | None) -> str:
     if not size:
         return prompt
@@ -247,7 +251,9 @@ def assistant_message_text(message: dict[str, Any]) -> str:
 def strip_history(text: str, history_text: str = "") -> str:
     text = str(text or "")
     history_text = str(history_text or "")
-    return text[len(history_text):] if history_text and text.startswith(history_text) else text
+    while history_text and text.startswith(history_text):
+        text = text[len(history_text):]
+    return text
 
 
 def assistant_text(event: dict[str, Any], current_text: str = "", history_text: str = "") -> str:
@@ -264,6 +270,16 @@ def assistant_text(event: dict[str, Any], current_text: str = "", history_text: 
         if text:
             return strip_history(text, history_text)
     return apply_text_patch(event, current_text, history_text)
+
+
+def event_assistant_text(event: dict[str, Any], history_text: str = "") -> str:
+    for candidate in (event, event.get("v")):
+        if not isinstance(candidate, dict):
+            continue
+        message = candidate.get("message")
+        if isinstance(message, dict) and (message.get("author") or {}).get("role") == "assistant":
+            return strip_history(assistant_message_text(message), history_text)
+    return ""
 
 
 def apply_text_patch(event: dict[str, Any], current_text: str = "", history_text: str = "") -> str:
@@ -364,8 +380,11 @@ def conversation_base_event(event_type: str, state: ConversationState, **extra: 
     }
 
 
-def iter_conversation_payloads(payloads: Iterator[str], history_text: str = "") -> Iterator[dict[str, Any]]:
+def iter_conversation_payloads(payloads: Iterator[str], history_text: str = "",
+                               history_messages: list[str] | None = None) -> Iterator[dict[str, Any]]:
     state = ConversationState()
+    history_messages = history_messages or []
+    history_index = 0
     for payload in payloads:
         # print(f"[upstream_sse] {payload}", flush=True)
         if not payload:
@@ -383,6 +402,10 @@ def iter_conversation_payloads(payloads: Iterator[str], history_text: str = "") 
             yield conversation_base_event("conversation.event", state, raw=event)
             continue
         update_conversation_state(state, payload, event)
+        if history_index < len(history_messages) and event_assistant_text(event, history_text) == history_messages[history_index]:
+            history_index += 1
+            state.text = ""
+            continue
         next_text = assistant_text(event, state.text, history_text)
         if next_text != state.text:
             delta = next_text[len(state.text):] if next_text.startswith(state.text) else next_text
@@ -403,6 +426,7 @@ def conversation_events(
     normalized = normalize_messages(messages or ([{"role": "user", "content": prompt}] if prompt else []))
     image_model = str(model or "").strip() in IMAGE_MODELS
     history_text = "" if image_model else assistant_history_text(normalized)
+    history_messages = [] if image_model else assistant_history_messages(normalized)
     final_prompt = build_image_prompt(prompt, size) if image_model else prompt
     payloads = backend.stream_conversation(
         messages=normalized,
@@ -411,7 +435,7 @@ def conversation_events(
         images=images if image_model else None,
         system_hints=["picture_v2"] if image_model else None,
     )
-    yield from iter_conversation_payloads(payloads, history_text)
+    yield from iter_conversation_payloads(payloads, history_text, history_messages)
 
 
 def text_backend() -> OpenAIBackendAPI:
