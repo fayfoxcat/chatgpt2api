@@ -33,6 +33,7 @@ function normalizeConfig(config: SettingsConfig): SettingsConfig {
     refresh_account_interval_minute: Number(config.refresh_account_interval_minute || 5),
     image_retention_days: Number(config.image_retention_days || 30),
     auto_remove_invalid_accounts: Boolean(config.auto_remove_invalid_accounts),
+    auto_remove_rate_limited_accounts: Boolean(config.auto_remove_rate_limited_accounts),
     log_levels: Array.isArray(config.log_levels) ? config.log_levels : [],
     proxy: typeof config.proxy === "string" ? config.proxy : "",
     base_url: typeof config.base_url === "string" ? config.base_url : "",
@@ -93,6 +94,7 @@ type SettingsStore = {
   setRefreshAccountIntervalMinute: (value: string) => void;
   setImageRetentionDays: (value: string) => void;
   setAutoRemoveInvalidAccounts: (value: boolean) => void;
+  setAutoRemoveRateLimitedAccounts: (value: boolean) => void;
   setLogLevel: (level: string, enabled: boolean) => void;
   setProxy: (value: string) => void;
   setBaseUrl: (value: string) => void;
@@ -197,6 +199,7 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
         refresh_account_interval_minute: Math.max(1, Number(config.refresh_account_interval_minute) || 1),
         image_retention_days: Math.max(1, Number(config.image_retention_days) || 30),
         auto_remove_invalid_accounts: Boolean(config.auto_remove_invalid_accounts),
+        auto_remove_rate_limited_accounts: Boolean(config.auto_remove_rate_limited_accounts),
         proxy: config.proxy.trim(),
         base_url: String(config.base_url || "").trim(),
       });
@@ -231,6 +234,10 @@ export const useSettingsStore = create<SettingsStore>((set, get) => ({
 
   setAutoRemoveInvalidAccounts: (value) => {
     set((state) => state.config ? { config: { ...state.config, auto_remove_invalid_accounts: value } } : {});
+  },
+
+  setAutoRemoveRateLimitedAccounts: (value) => {
+    set((state) => state.config ? { config: { ...state.config, auto_remove_rate_limited_accounts: value } } : {});
   },
 
   setLogLevel: (level, enabled) => {

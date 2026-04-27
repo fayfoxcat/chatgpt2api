@@ -118,6 +118,13 @@ class ConfigStore:
         return bool(value)
 
     @property
+    def auto_remove_rate_limited_accounts(self) -> bool:
+        value = self.data.get("auto_remove_rate_limited_accounts", False)
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    @property
     def log_levels(self) -> list[str]:
         levels = self.data.get("log_levels")
         if not isinstance(levels, list):
@@ -166,6 +173,7 @@ class ConfigStore:
         data["refresh_account_interval_minute"] = self.refresh_account_interval_minute
         data["image_retention_days"] = self.image_retention_days
         data["auto_remove_invalid_accounts"] = self.auto_remove_invalid_accounts
+        data["auto_remove_rate_limited_accounts"] = self.auto_remove_rate_limited_accounts
         data["log_levels"] = self.log_levels
         data.pop("auth-key", None)
         return data

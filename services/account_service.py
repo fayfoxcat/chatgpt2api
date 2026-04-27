@@ -388,6 +388,11 @@ class AccountService:
             account = self._normalize_account({**self._accounts[index], **updates, "access_token": access_token})
             if account is None:
                 return None
+            if account.get("status") == "限流" and config.auto_remove_rate_limited_accounts:
+                del self._accounts[index]
+                self._save_accounts()
+                log_service.add(LOG_TYPE_ACCOUNT, "自动移除限流账号", {"token": anonymize_token(access_token)})
+                return None
             self._accounts[index] = account
             self._save_accounts()
             log_service.add(LOG_TYPE_ACCOUNT, "更新账号", {"token": anonymize_token(access_token), "status": account.get("status")})
@@ -418,6 +423,11 @@ class AccountService:
                 next_item["fail"] = int(next_item.get("fail") or 0) + 1
             account = self._normalize_account(next_item)
             if account is None:
+                return None
+            if account.get("status") == "限流" and config.auto_remove_rate_limited_accounts:
+                del self._accounts[index]
+                self._save_accounts()
+                log_service.add(LOG_TYPE_ACCOUNT, "自动移除限流账号", {"token": anonymize_token(access_token)})
                 return None
             self._accounts[index] = account
             self._save_accounts()
