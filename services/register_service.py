@@ -9,11 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from services.account_service import account_service
-from services.config import DATA_DIR
+from services.config import DATA_DIR, config
 from services.register import openai_register
 
-
-REGISTER_FILE = DATA_DIR / "register.json"
+_KV_KEY = "register_config"
 
 
 def _now() -> str:
@@ -42,8 +41,7 @@ def _normalize(raw: dict) -> dict:
 
 
 class RegisterService:
-    def __init__(self, store_file: Path):
-        self._store_file = store_file
+    def __init__(self):
         self._lock = threading.RLock()
         self._runner: threading.Thread | None = None
         self._logs: list[dict] = []
@@ -52,15 +50,29 @@ class RegisterService:
         if self._config["enabled"]:
             self.start()
 
+    def _backend(self):
+        return config.get_storage_backend()
+
     def _load(self) -> dict:
+        # 优先从存储后端读取（支持数据库持久化）
         try:
-            return _normalize(json.loads(self._store_file.read_text(encoding="utf-8")))
+            data = self._backend().load_kv(_KV_KEY)
+            if isinstance(data, dict):
+                return _normalize(data)
+        except Exception:
+            pass
+        # 降级：尝试读旧的本地文件（迁移兼容）
+        legacy_file = DATA_DIR / "register.json"
+        try:
+            return _normalize(json.loads(legacy_file.read_text(encoding="utf-8")))
         except Exception:
             return _normalize({})
 
     def _save(self) -> None:
-        self._store_file.parent.mkdir(parents=True, exist_ok=True)
-        self._store_file.write_text(json.dumps(self._config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        try:
+            self._backend().save_kv(_KV_KEY, self._config)
+        except Exception as e:
+            print(f"[register-service] save failed: {e}")
 
     def get(self) -> dict:
         with self._lock:
@@ -187,4 +199,4 @@ class RegisterService:
         self._append_log(f"注册任务结束，成功{success}，失败{fail}", "yellow")
 
 
-register_service = RegisterService(REGISTER_FILE)
+register_service = RegisterService()

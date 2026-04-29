@@ -65,6 +65,26 @@ class JSONStorageBackend(StorageBackend):
             encoding="utf-8",
         )
 
+    def load_kv(self, key: str) -> dict[str, Any] | None:
+        """从 JSON 文件加载 key-value 记录"""
+        kv_path = self.file_path.parent / f"kv_{key}.json"
+        if not kv_path.exists():
+            return None
+        try:
+            data = json.loads(kv_path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
+
+    def save_kv(self, key: str, value: dict[str, Any]) -> None:
+        """保存 key-value 记录到 JSON 文件"""
+        kv_path = self.file_path.parent / f"kv_{key}.json"
+        try:
+            kv_path.parent.mkdir(parents=True, exist_ok=True)
+            kv_path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+
     def health_check(self) -> dict[str, Any]:
         """健康检查"""
         try:

@@ -147,6 +147,22 @@ class GitStorageBackend(StorageBackend):
             repo.index.commit(message)
             repo.remote("origin").push(self.branch)
 
+    def load_kv(self, key: str) -> dict[str, Any] | None:
+        """从 Git 仓库加载 key-value 记录"""
+        try:
+            data = self._load_json_value(f"kv_{key}.json")
+            return data if isinstance(data, dict) else None
+        except Exception:
+            return None
+
+    def save_kv(self, key: str, value: dict[str, Any]) -> None:
+        """保存 key-value 记录到 Git 仓库"""
+        try:
+            self._save_json_file(f"kv_{key}.json", value, f"Update kv: {key}")
+        except Exception as e:
+            print(f"[git-storage] save kv failed: {e}")
+            raise e
+
     def health_check(self) -> dict[str, Any]:
         """健康检查"""
         try:

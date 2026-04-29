@@ -30,6 +30,14 @@ class AuthKeyModel(Base):
     data = Column(Text, nullable=False)
 
 
+class KVModel(Base):
+    """通用 key-value 存储模型（用于持久化注册机配置等）"""
+    __tablename__ = "kv_store"
+
+    key = Column(String(255), primary_key=True, nullable=False)
+    value = Column(Text, nullable=False)
+
+
 class DatabaseStorageBackend(StorageBackend):
     """数据库存储后端（支持 SQLite、PostgreSQL、MySQL 等）"""
 
@@ -135,6 +143,36 @@ class DatabaseStorageBackend(StorageBackend):
                         data=json.dumps(item, ensure_ascii=False),
                     )
                 )
+            session.commit()
+        except Exception as e:
+            session.rollback()
+            raise e
+        finally:
+            session.close()
+
+    def load_kv(self, key: str) -> dict[str, Any] | None:
+        """从数据库加载 key-value 记录"""
+        session = self.Session()
+        try:
+            row = session.query(KVModel).filter(KVModel.key == key).first()
+            if row is None:
+                return None
+            return json.loads(row.value)
+        except Exception:
+            return None
+        finally:
+            session.close()
+
+    def save_kv(self, key: str, value: dict[str, Any]) -> None:
+        """保存 key-value 记录到数据库（upsert）"""
+        session = self.Session()
+        try:
+            row = session.query(KVModel).filter(KVModel.key == key).first()
+            serialized = json.dumps(value, ensure_ascii=False)
+            if row is None:
+                session.add(KVModel(key=key, value=serialized))
+            else:
+                row.value = serialized
             session.commit()
         except Exception as e:
             session.rollback()

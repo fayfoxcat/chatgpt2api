@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -67,6 +68,11 @@ def encode_images(images: Iterable[tuple[bytes, str, str]]) -> list[str]:
 
 
 def save_image_bytes(image_data: bytes, base_url: str | None = None) -> str:
+    # In stateless environments (e.g. Vercel), skip saving to local disk.
+    # The caller already has the image as b64_json; the URL is only used for
+    # the image manager page, which won't work without persistent storage anyway.
+    if os.getenv("VERCEL") or os.getenv("CHATGPT2API_SKIP_IMAGE_SAVE"):
+        return ""
     config.cleanup_old_images()
     file_hash = hashlib.md5(image_data).hexdigest()
     filename = f"{int(time.time())}_{file_hash}.png"

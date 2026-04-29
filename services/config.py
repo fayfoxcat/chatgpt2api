@@ -115,19 +115,22 @@ class ConfigStore:
     @property
     def refresh_account_interval_minute(self) -> int:
         try:
-            return int(self.data.get("refresh_account_interval_minute", 5))
+            return int(os.getenv("CHATGPT2API_REFRESH_INTERVAL") or self.data.get("refresh_account_interval_minute", 5))
         except (TypeError, ValueError):
             return 5
 
     @property
     def image_retention_days(self) -> int:
         try:
-            return max(1, int(self.data.get("image_retention_days", 30)))
+            return max(1, int(os.getenv("CHATGPT2API_IMAGE_RETENTION_DAYS") or self.data.get("image_retention_days", 30)))
         except (TypeError, ValueError):
             return 30
 
     @property
     def auto_remove_invalid_accounts(self) -> bool:
+        env = os.getenv("CHATGPT2API_AUTO_REMOVE_INVALID")
+        if env is not None:
+            return env.strip().lower() in {"1", "true", "yes", "on"}
         value = self.data.get("auto_remove_invalid_accounts", False)
         if isinstance(value, str):
             return value.strip().lower() in {"1", "true", "yes", "on"}
@@ -135,6 +138,9 @@ class ConfigStore:
 
     @property
     def auto_remove_rate_limited_accounts(self) -> bool:
+        env = os.getenv("CHATGPT2API_AUTO_REMOVE_RATE_LIMITED")
+        if env is not None:
+            return env.strip().lower() in {"1", "true", "yes", "on"}
         value = self.data.get("auto_remove_rate_limited_accounts", False)
         if isinstance(value, str):
             return value.strip().lower() in {"1", "true", "yes", "on"}
