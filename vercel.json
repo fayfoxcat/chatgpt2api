@@ -1,5 +1,10 @@
 {
   "version": 2,
+  "functions": {
+    "api/vercel_app.py": {
+      "maxDuration": 60
+    }
+  },
   "builds": [
     {
       "src": "api/vercel_app.py",
