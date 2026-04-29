@@ -13,8 +13,11 @@ class JSONStorageBackend(StorageBackend):
     def __init__(self, file_path: Path, auth_keys_path: Path | None = None):
         self.file_path = file_path
         self.auth_keys_path = auth_keys_path or file_path.with_name("auth_keys.json")
-        self.file_path.parent.mkdir(parents=True, exist_ok=True)
-        self.auth_keys_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.file_path.parent.mkdir(parents=True, exist_ok=True)
+            self.auth_keys_path.parent.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
 
     @staticmethod
     def _load_json_list(file_path: Path) -> list[dict[str, Any]]:

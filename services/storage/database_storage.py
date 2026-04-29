@@ -35,8 +35,35 @@ class DatabaseStorageBackend(StorageBackend):
 
     def __init__(self, database_url: str):
         self.database_url = database_url
+        # Neon / Vercel: psycopg2-binary may not be available in serverless environments.
+        # Automatically fall back to pg8000 (pure-Python, no compilation needed).
+        # Also handle SSL requirements for Neon connections.
+        connect_args: dict[str, Any] = {}
+        engine_url = database_url
+
+        if "postgresql" in database_url or "postgres" in database_url:
+            # Try psycopg2 first; if unavailable, rewrite URL to use pg8000
+            try:
+                import psycopg2  # noqa: F401
+            except ImportError:
+                # Replace driver with pg8000
+                engine_url = database_url.replace("postgresql://", "postgresql+pg8000://", 1)
+                engine_url = engine_url.replace("postgres://", "postgresql+pg8000://", 1)
+
+            # Neon requires SSL — pass ssl=True via connect_args for pg8000,
+            # or rely on the ?sslmode=require query param for psycopg2.
+            if "pg8000" in engine_url:
+                import ssl as _ssl
+                ssl_ctx = _ssl.create_default_context()
+                ssl_ctx.check_hostname = False
+                ssl_ctx.verify_mode = _ssl.CERT_NONE
+                connect_args["ssl_context"] = ssl_ctx
+                # pg8000 doesn't understand sslmode/channel_binding query params — strip them
+                engine_url = engine_url.split("?")[0]
+
         self.engine = create_engine(
-            database_url,
+            engine_url,
+            connect_args=connect_args,
             pool_pre_ping=True,  # 自动检测连接是否有效
             pool_recycle=3600,   # 1小时回收连接
         )

@@ -10,7 +10,10 @@ import time
 from services.storage.base import StorageBackend
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-DATA_DIR = BASE_DIR / "data"
+# Vercel Serverless Functions run in a read-only filesystem (/var/task).
+# The only writable directory is /tmp. Redirect DATA_DIR there when on Vercel.
+_is_vercel = bool(os.getenv("VERCEL"))
+DATA_DIR = Path("/tmp/chatgpt2api") if _is_vercel else BASE_DIR / "data"
 CONFIG_FILE = BASE_DIR / "config.json"
 VERSION_FILE = BASE_DIR / "VERSION"
 
