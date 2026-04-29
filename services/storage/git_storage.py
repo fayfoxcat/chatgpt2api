@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
+
+# Suppress gitpython's ImportError when git executable is not found.
+# This allows the module to be imported safely; errors will only surface
+# when GitStorageBackend methods are actually called.
+os.environ.setdefault("GIT_PYTHON_REFRESH", "quiet")
 
 from git import Repo
 from git.exc import GitCommandError
