@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 from sqlalchemy import Column, String, Text, create_engine, Integer, text
@@ -63,12 +64,27 @@ class DatabaseStorageBackend(StorageBackend):
                 connect_args["ssl_context"] = ssl_ctx
                 engine_url = engine_url.split("?")[0]
 
-        self.engine = create_engine(
-            engine_url,
-            connect_args=connect_args,
-            pool_pre_ping=True,
-            pool_recycle=3600,
-        )
+        # Vercel Serverless 每个请求是独立进程，连接池没有意义且会导致
+        # Neon 的 SSL EOF 错误（空闲连接被 Neon 断开后 pool 还持有引用）。
+        # 在 Vercel 上使用 NullPool，每次请求建立新连接，用完立即关闭。
+        is_vercel = bool(os.getenv("VERCEL"))
+        if is_vercel and self._is_postgres:
+            from sqlalchemy.pool import NullPool
+            self.engine = create_engine(
+                engine_url,
+                connect_args=connect_args,
+                poolclass=NullPool,
+            )
+        else:
+            self.engine = create_engine(
+                engine_url,
+                connect_args=connect_args,
+                pool_pre_ping=True,
+                pool_recycle=300,    # Neon 空闲连接约 5 分钟断开，提前回收
+                pool_size=5,
+                max_overflow=10,
+                pool_timeout=30,
+            )
         Base.metadata.create_all(self.engine)
         self.Session = sessionmaker(bind=self.engine)
 
