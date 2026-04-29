@@ -173,7 +173,6 @@ class DatabaseStorageBackend(StorageBackend):
             raise e
         finally:
             session.close()
-
     # ── kv_store ──────────────────────────────────────────────────────────────
 
     def load_kv(self, key: str) -> dict[str, Any] | None:
@@ -195,13 +194,13 @@ class DatabaseStorageBackend(StorageBackend):
         try:
             serialized = json.dumps(value, ensure_ascii=False)
             if self._is_postgres:
-                session.execute(
-                    text(
-                        "INSERT INTO kv_store (key, value) VALUES (:key, :value) "
-                        "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value"
-                    ),
-                    {"key": key, "value": serialized},
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+                stmt = pg_insert(KVModel.__table__).values(key=key, value=serialized)
+                stmt = stmt.on_conflict_do_update(
+                    index_elements=["key"],
+                    set_={"value": stmt.excluded.value},
                 )
+                session.execute(stmt)
             elif self._is_sqlite:
                 session.execute(
                     text("INSERT OR REPLACE INTO kv_store (key, value) VALUES (:key, :value)"),
@@ -229,16 +228,21 @@ class DatabaseStorageBackend(StorageBackend):
         unique_col: str,
         rows: list[tuple[str, str]],
     ) -> None:
-        """PostgreSQL: INSERT ... ON CONFLICT DO UPDATE"""
-        table = model.__tablename__
-        for key_value, data_value in rows:
-            session.execute(
-                text(
-                    f"INSERT INTO {table} ({unique_col}, data) VALUES (:{unique_col}, :data) "
-                    f"ON CONFLICT ({unique_col}) DO UPDATE SET data = EXCLUDED.data"
-                ),
-                {unique_col: key_value, "data": data_value},
-            )
+        """PostgreSQL: 使用 SQLAlchemy Core 的 insert().on_conflict_do_update()
+        这是唯一可靠的方式，避免 ORM session 缓存干扰导致 UniqueViolation。
+        """
+        if not rows:
+            return
+        from sqlalchemy.dialects.postgresql import insert as pg_insert
+        table = model.__table__
+        stmt = pg_insert(table).values(
+            [{unique_col: key_value, "data": data_value} for key_value, data_value in rows]
+        )
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[unique_col],
+            set_={"data": stmt.excluded.data},
+        )
+        session.execute(stmt)
 
     def _upsert_sqlite(
         self,
