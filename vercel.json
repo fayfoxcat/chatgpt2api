@@ -1,0 +1,38 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "api/vercel_app.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb"
+      }
+    },
+    {
+      "src": "web/package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/auth/(.*)",
+      "dest": "api/vercel_app.py"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "api/vercel_app.py"
+    },
+    {
+      "src": "/v1/(.*)",
+      "dest": "api/vercel_app.py"
+    },
+    {
+      "src": "/images/(.*)",
+      "dest": "api/vercel_app.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "web/$1"
+    }
+  ]
+}

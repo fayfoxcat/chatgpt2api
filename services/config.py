@@ -46,7 +46,10 @@ def _read_json_object(path: Path, *, name: str) -> dict[str, object]:
 
 
 def _load_settings() -> LoadedSettings:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        DATA_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        pass
     raw_config = _read_json_object(CONFIG_FILE, name="config.json")
     auth_key = _normalize_auth_key(os.getenv("CHATGPT2API_AUTH_KEY") or raw_config.get("auth-key"))
     if _is_invalid_auth_key(auth_key):
@@ -69,14 +72,17 @@ def _load_settings() -> LoadedSettings:
 class ConfigStore:
     def __init__(self, path: Path):
         self.path = path
-        DATA_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
         self.data = self._load()
         self._storage_backend: StorageBackend | None = None
         if _is_invalid_auth_key(self.auth_key):
             raise ValueError(
                 "❌ auth-key 未设置！\n"
                 "请按以下任意一种方式解决：\n"
-                "1. 在 Render 的 Environment 变量中添加：\n"
+                "1. 在 Vercel / Render 的 Environment 变量中添加：\n"
                 "   CHATGPT2API_AUTH_KEY = your_real_auth_key\n"
                 "2. 或者在 config.json 中填写：\n"
                 '   "auth-key": "your_real_auth_key"'
@@ -86,7 +92,14 @@ class ConfigStore:
         return _read_json_object(self.path, name="config.json")
 
     def _save(self) -> None:
-        self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        # Vercel and other read-only environments don't support writing to the filesystem.
+        # In those cases, silently skip persisting config changes (rely on env vars instead).
+        if os.getenv("VERCEL") or os.getenv("CHATGPT2API_READONLY_FS"):
+            return
+        try:
+            self.path.write_text(json.dumps(self.data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except OSError:
+            pass
 
     @property
     def auth_key(self) -> str:
@@ -135,7 +148,10 @@ class ConfigStore:
     @property
     def images_dir(self) -> Path:
         path = DATA_DIR / "images"
-        path.mkdir(parents=True, exist_ok=True)
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            pass
         return path
 
     def cleanup_old_images(self) -> int:
