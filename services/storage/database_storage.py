@@ -19,7 +19,7 @@ class AccountModel(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     access_token = Column(String(2048), unique=True, nullable=False, index=True)
-    data = Column(Text, nullable=False)
+    data = Column(Text,  nullable=False)
 
 
 class AuthKeyModel(Base):
