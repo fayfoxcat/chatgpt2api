@@ -190,3 +190,18 @@ class LoggedCall:
         if collected_urls:
             detail["urls"] = list(dict.fromkeys(collected_urls))
         log_service.add(LOG_TYPE_CALL, f"{self.summary}{suffix}", detail)
+
+        # 更新用户密钥使用统计
+        key_id = str(self.identity.get("id") or "")
+        if key_id and self.endpoint in ("/v1/images/generations", "/v1/images/edits"):
+            image_count = len(detail.get("urls") or []) if status == "success" else 0
+            try:
+                from services.auth_service import auth_service as _auth_service
+                _auth_service.record_usage(
+                    key_id,
+                    endpoint=self.endpoint,
+                    status=status,
+                    image_count=image_count,
+                )
+            except Exception:
+                pass

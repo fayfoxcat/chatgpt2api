@@ -114,6 +114,12 @@ export type UserKey = {
   enabled: boolean;
   created_at: string | null;
   last_used_at: string | null;
+  total_calls: number;
+  total_images: number;
+  image_gen_success: number;
+  image_gen_fail: number;
+  image_edit_success: number;
+  image_edit_fail: number;
 };
 
 export type RegisterConfig = {

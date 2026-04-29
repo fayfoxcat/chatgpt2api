@@ -54,6 +54,13 @@ class AuthService:
             "enabled": bool(raw.get("enabled", True)),
             "created_at": created_at,
             "last_used_at": last_used_at,
+            # usage stats
+            "total_calls": int(raw.get("total_calls") or 0),
+            "total_images": int(raw.get("total_images") or 0),
+            "image_gen_success": int(raw.get("image_gen_success") or 0),
+            "image_gen_fail": int(raw.get("image_gen_fail") or 0),
+            "image_edit_success": int(raw.get("image_edit_success") or 0),
+            "image_edit_fail": int(raw.get("image_edit_fail") or 0),
         }
 
     def _load(self) -> list[dict[str, object]]:
@@ -77,6 +84,12 @@ class AuthService:
             "enabled": bool(item.get("enabled", True)),
             "created_at": item.get("created_at"),
             "last_used_at": item.get("last_used_at"),
+            "total_calls": int(item.get("total_calls") or 0),
+            "total_images": int(item.get("total_images") or 0),
+            "image_gen_success": int(item.get("image_gen_success") or 0),
+            "image_gen_fail": int(item.get("image_gen_fail") or 0),
+            "image_edit_success": int(item.get("image_edit_success") or 0),
+            "image_edit_fail": int(item.get("image_edit_fail") or 0),
         }
 
     def list_keys(self, role: AuthRole | None = None) -> list[dict[str, object]]:
@@ -142,6 +155,43 @@ class AuthService:
                 return False
             self._save()
             return True
+
+    def record_usage(
+        self,
+        key_id: str,
+        *,
+        endpoint: str = "",
+        status: str = "success",
+        image_count: int = 0,
+    ) -> None:
+        """记录用户密钥的使用情况统计"""
+        normalized_id = self._clean(key_id)
+        if not normalized_id:
+            return
+        with self._lock:
+            for index, item in enumerate(self._items):
+                if item.get("id") != normalized_id:
+                    continue
+                next_item = dict(item)
+                next_item["total_calls"] = int(next_item.get("total_calls") or 0) + 1
+                next_item["total_images"] = int(next_item.get("total_images") or 0) + image_count
+                if endpoint == "/v1/images/generations":
+                    if status == "success":
+                        next_item["image_gen_success"] = int(next_item.get("image_gen_success") or 0) + 1
+                    else:
+                        next_item["image_gen_fail"] = int(next_item.get("image_gen_fail") or 0) + 1
+                elif endpoint == "/v1/images/edits":
+                    if status == "success":
+                        next_item["image_edit_success"] = int(next_item.get("image_edit_success") or 0) + 1
+                    else:
+                        next_item["image_edit_fail"] = int(next_item.get("image_edit_fail") or 0) + 1
+                self._items[index] = next_item
+                # 批量写入，避免频繁 I/O
+                try:
+                    self._save()
+                except Exception:
+                    pass
+                break
 
     def authenticate(self, raw_key: str) -> dict[str, object] | None:
         candidate = self._clean(raw_key)
