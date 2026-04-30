@@ -1,16 +1,12 @@
 {
   "version": 2,
-  "functions": {
-    "api/vercel_app.py": {
-      "maxDuration": 60
-    }
-  },
   "builds": [
     {
       "src": "api/vercel_app.py",
       "use": "@vercel/python",
       "config": {
-        "maxLambdaSize": "50mb"
+        "maxLambdaSize": "50mb",
+        "maxDuration": 60
       }
     },
     {
